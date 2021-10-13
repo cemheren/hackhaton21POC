@@ -19,10 +19,10 @@ namespace Hackathon21Poc.Generators
         public void Initialize(GeneratorInitializationContext context)
         {
 #if DEBUG
-            // if (!Debugger.IsAttached)
-            // {
-            //     Debugger.Launch();
-            // }
+            //if (!Debugger.IsAttached)
+            //{
+            //    Debugger.Launch();
+            //}
 #endif 
 
             // Register a factory that can create our custom syntax receiver
@@ -47,7 +47,7 @@ namespace Hackathon21Poc.Generators
 
             var probeImplementationMethod = syntaxReceiver.MethodToAugment;
             var methodContents = this.GetMethodContents(probeImplementationMethod);
-            this.SplitOnInterleaverCalls(methodContents);
+            var stateSegments = this.SplitOnInterleaverCalls(methodContents);
 
             //userClass.SyntaxTree.GetText().ToString().Substring(userClass.Members[1].ChildNodesAndTokens()[4].SpanStart, userClass.Members[1].ChildNodesAndTokens()[4].Span.Length)
             var probeImplementationMethodContents = userClass
@@ -66,6 +66,22 @@ namespace Hackathon21Poc.Generators
                 .Single()
                 .Body;
 
+            var generatedMethodBody = $@"
+                Console.WriteLine(""This is generated"");
+                Console.WriteLine(""This is generated 2"");
+";
+
+            for (int i = 0; i < stateSegments.Count; i++)
+            {
+                var stateSegment = stateSegments[i];
+                var nodesAsText = stateSegment.Select(node => this.GetNodeText(node)).ToArray();
+                var joinedSegment = string.Join("\n", nodesAsText);
+                generatedMethodBody = $@"
+                    {generatedMethodBody}
+                    {joinedSegment}
+";
+            }
+
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
 namespace Hackathon21Poc.Probes {{
@@ -75,8 +91,7 @@ namespace Hackathon21Poc.Probes {{
     {{
         partial void GeneratedProbeImplementation()
         {{
-            Console.WriteLine(""This is generated"");
-            Console.WriteLine(""This is generated 2"");
+            {generatedMethodBody}
         }}
     }}
 }}", Encoding.UTF8);
@@ -90,7 +105,7 @@ namespace Hackathon21Poc.Probes {{
             return methodBody.ChildNodesAndTokens().Skip(1).Take(nodeCount - 2).ToList();
         }
 
-        private void SplitOnInterleaverCalls(List<SyntaxNodeOrToken> methodContents)
+        private List<List<SyntaxNodeOrToken>> SplitOnInterleaverCalls(List<SyntaxNodeOrToken> methodContents)
         {
             var stateSegments = new List<List<SyntaxNodeOrToken>>();
             var interleaverIndexes = new List<int>();
@@ -114,6 +129,7 @@ namespace Hackathon21Poc.Probes {{
             }
 
             stateSegments.Add(methodContents.Skip(interleaverIndexes.Last() + 1).Take(methodContents.Count - interleaverIndexes.Last()).ToList());
+            return stateSegments;
         }
 
         private string GetNodeText(SyntaxNodeOrToken node)
