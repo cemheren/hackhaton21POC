@@ -49,14 +49,11 @@ namespace Hackathon21Poc.Generators
 
             var semanticModel = compilation.GetSemanticModel(userClass.SyntaxTree);
             var methodBody = userClass.SyntaxTree.GetRoot()
-                .DescendantNodesAndSelf()
-                .OfType<ClassDeclarationSyntax>()
-                .Select(x => semanticModel.GetDeclaredSymbol(x))
-                .OfType<MethodDeclarationSyntax>();
-                
-                //.Where(x => x.Identifier.ValueText.Contains("ProbeImplementation"))
-                //.Single()
-                //.Body;
+                .DescendantNodes()
+                .OfType<MethodDeclarationSyntax>()
+                .Where(x => x.Identifier.ValueText == "ProbeImplementation")
+                .Single()
+                .Body;
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
