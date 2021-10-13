@@ -7,6 +7,8 @@ namespace Hackathon21Poc.Generators
     using Microsoft.CodeAnalysis;
     using Microsoft.CodeAnalysis.CSharp.Syntax;
     using Microsoft.CodeAnalysis.Text;
+    using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Text;
@@ -40,10 +42,19 @@ namespace Hackathon21Poc.Generators
                 // if we didn't find the user class, there is nothing to do
                 return;
             }
+
+            var probeImplementationMethod = syntaxReceiver.MethodToAugment;
+            var methodContents = this.GetMethodContents(probeImplementationMethod);
+            this.SplitOnInterleaverCalls(methodContents);
+
             //userClass.SyntaxTree.GetText().ToString().Substring(userClass.Members[1].ChildNodesAndTokens()[4].SpanStart, userClass.Members[1].ChildNodesAndTokens()[4].Span.Length)
-            var probeImplementationMethodContents = userClass.Members[1].ChildNodesAndTokens().Last();
-            var methodNodes = probeImplementationMethodContents.ChildNodesAndTokens().Skip(1).Take(probeImplementationMethodContents.ChildNodesAndTokens().Count - 2);
-            var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNodes.First().SpanStart, methodNodes.Last().SpanStart - methodNodes.First().SpanStart + methodNodes.Last().Span.Length);
+            //var probeImplementationMethodContents = userClass
+            //    .Members[1]
+            //    //.Where(member => true)
+            //    .ChildNodesAndTokens()
+            //    .Last();
+            //var methodNodes = probeImplementationMethodContents.ChildNodesAndTokens().Skip(1).Take(probeImplementationMethodContents.ChildNodesAndTokens().Count - 2);
+            //var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNodes.First().SpanStart, methodNodes.Last().SpanStart - methodNodes.First().SpanStart + methodNodes.Last().Span.Length);
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
@@ -56,15 +67,56 @@ namespace Hackathon21Poc.Probes {{
         {{
             {methodContents}
             Console.WriteLine(""This is generated"");
+            Console.WriteLine(""This is generated 2"");
         }}
     }}
 }}", Encoding.UTF8);
             context.AddSource("UserClass.Generated.cs", sourceText);
         }
 
+        private List<SyntaxNodeOrToken> GetMethodContents(MethodDeclarationSyntax method)
+        {
+            var methodBody = method.ChildNodes().Last();
+            var nodeCount = methodBody.ChildNodesAndTokens().Count;
+            return methodBody.ChildNodesAndTokens().Skip(1).Take(nodeCount - 2).ToList();
+        }
+
+        private void SplitOnInterleaverCalls(List<SyntaxNodeOrToken> methodContents)
+        {
+            var stateSegments = new List<List<SyntaxNodeOrToken>>();
+            var interleaverIndexes = new List<int>();
+            for (int i = 0; i < methodContents.Count(); i++)
+            {
+                var node = methodContents[i];
+                var nodeText = this.GetNodeText(node);
+                if (nodeText == "Interleaver.Pause();")
+                {
+                    if (interleaverIndexes.Count == 0)
+                    {
+                        stateSegments.Add(methodContents.Take(i).ToList());
+                    }
+                    else
+                    {
+                        stateSegments.Add(methodContents.Skip(interleaverIndexes.Last() + 1).Take(i - interleaverIndexes.Last()).ToList());
+                    }
+
+                    interleaverIndexes.Add(i);
+                }
+            }
+
+            stateSegments.Add(methodContents.Skip(interleaverIndexes.Last() + 1).Take(methodContents.Count - interleaverIndexes.Last()).ToList());
+        }
+
+        private string GetNodeText(SyntaxNodeOrToken node)
+        {
+            return node.SyntaxTree.ToString().Substring(node.SpanStart, node.Span.Length);
+        }
+
         class MySyntaxReceiver : ISyntaxReceiver
         {
             public ClassDeclarationSyntax ClassToAugment { get; private set; }
+
+            public MethodDeclarationSyntax MethodToAugment { get; private set; }
 
             public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
             {
@@ -73,6 +125,12 @@ namespace Hackathon21Poc.Probes {{
                     cds.Identifier.ValueText == "UserClass")
                 {
                     ClassToAugment = cds;
+                }
+
+                if (syntaxNode is MethodDeclarationSyntax method &&
+                    method.Identifier.ValueText == "ProbeImplementation")
+                {
+                    MethodToAugment = method;
                 }
             }
         }
