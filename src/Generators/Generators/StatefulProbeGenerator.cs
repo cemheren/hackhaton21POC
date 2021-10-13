@@ -124,7 +124,7 @@ namespace Hackathon21Poc.Probes {{
                     }
                     else
                     {
-                        stateSegments.Add(methodContents.Skip(interleaverIndexes.Last() + 1).Take(i - interleaverIndexes.Last()).ToList());
+                        stateSegments.Add(methodContents.Skip(interleaverIndexes.Last() + 1).Take(i - interleaverIndexes.Last() - 1).ToList());
                     }
 
                     interleaverIndexes.Add(i);
