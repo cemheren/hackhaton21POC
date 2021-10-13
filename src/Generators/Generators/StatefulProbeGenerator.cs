@@ -4,9 +4,11 @@
 
 namespace Hackathon21Poc.Generators
 {
+    using GeneratorDependencies;
     using Microsoft.CodeAnalysis;
     using Microsoft.CodeAnalysis.CSharp.Syntax;
     using Microsoft.CodeAnalysis.Text;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Text;
@@ -55,6 +57,22 @@ namespace Hackathon21Poc.Generators
                 .Single()
                 .Body;
 
+            var statementsBeforeInterleaver = new List<StatementSyntax>();
+
+            for (int i = 0; i < methodBody.Statements.Count; i++)
+            {
+                var statement = methodBody.Statements[i];
+
+                if (statement is ExpressionStatementSyntax expressionStatement
+                    && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
+                    && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
+                {
+                    break;
+                }
+
+                statementsBeforeInterleaver.Add(statement);
+            }
+
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
 namespace Hackathon21Poc.Probes {{
@@ -64,12 +82,23 @@ namespace Hackathon21Poc.Probes {{
     {{
         partial void GeneratedProbeImplementation()
         {{
-            {methodContents}
+            {GetLines(statementsBeforeInterleaver)}
             Console.WriteLine(""This is generated"");
         }}
     }}
 }}", Encoding.UTF8);
             context.AddSource("UserClass.Generated.cs", sourceText);
+        }
+
+        private string GetLines(List<StatementSyntax> statements)
+        { 
+            var sb = new StringBuilder();
+            foreach (var statement in statements)
+            { 
+                sb.AppendLine(statement.ToString());
+            }
+
+            return sb.ToString();
         }
 
         class MySyntaxReceiver : ISyntaxReceiver
