@@ -19,6 +19,8 @@ namespace Hackathon21Poc.Probes
         {
             var x = 5;
             var y = 5;
+            Interleaver.Pause();
+            
             Console.WriteLine("This is hardcoded test");
             Console.WriteLine("This is hardcoded test3fafds");
             Console.WriteLine("arbitrary");

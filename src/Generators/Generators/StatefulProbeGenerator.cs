@@ -4,6 +4,7 @@
 
 namespace Hackathon21Poc.Generators
 {
+    using GeneratorDependencies;
     using Microsoft.CodeAnalysis;
     using Microsoft.CodeAnalysis.CSharp.Syntax;
     using Microsoft.CodeAnalysis.Text;
