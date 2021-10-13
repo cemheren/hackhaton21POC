@@ -5,6 +5,9 @@
 namespace Hackathon21Poc.Generators
 {
     using Microsoft.CodeAnalysis;
+    using Microsoft.CodeAnalysis.CSharp.Syntax;
+    using Microsoft.CodeAnalysis.Text;
+    using System.Text;
 
     [Generator]
     public class StatefulProbeGenerator : ISourceGenerator
@@ -31,11 +34,12 @@ namespace Hackathon21Poc.Generators
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
+namespace Hackathon21Poc.Probes
     public partial class {userClass.Identifier}
     {{
-        private void GeneratedMethod()
+        public void GeneratedProbeImplementation()
         {{
-            // generated code
+            Console.WriteLine(""This is generated"");
         }}
     }}", Encoding.UTF8);
             context.AddSource("UserClass.Generated.cs", sourceText);
