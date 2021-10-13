@@ -34,14 +34,17 @@ namespace Hackathon21Poc.Generators
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
-namespace Hackathon21Poc.Probes
+namespace Hackathon21Poc.Probes {{
+    using System;
+
     public partial class {userClass.Identifier}
     {{
-        public void GeneratedProbeImplementation()
+        partial void GeneratedProbeImplementation()
         {{
             Console.WriteLine(""This is generated"");
         }}
-    }}", Encoding.UTF8);
+    }}
+}}", Encoding.UTF8);
             context.AddSource("UserClass.Generated.cs", sourceText);
         }
 

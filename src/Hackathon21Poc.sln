@@ -5,7 +5,7 @@ VisualStudioVersion = 17.0.31717.71
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Generators", "Generators\Generators.csproj", "{8D61062D-DF06-48C5-BDD4-641B0035E6E9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Program", "Program\Program.csproj", "{0E003598-ABD9-4BCC-9C4F-8C7A2928B6C6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Program", "Program\Program.csproj", "{0E003598-ABD9-4BCC-9C4F-8C7A2928B6C6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,6 +16,7 @@ Global
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8D61062D-DF06-48C5-BDD4-641B0035E6E9}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{8D61062D-DF06-48C5-BDD4-641B0035E6E9}.Debug|Any CPU.Build.0 = Debug|x64
 		{8D61062D-DF06-48C5-BDD4-641B0035E6E9}.Debug|x64.ActiveCfg = Debug|x64
 		{8D61062D-DF06-48C5-BDD4-641B0035E6E9}.Debug|x64.Build.0 = Debug|x64
 		{8D61062D-DF06-48C5-BDD4-641B0035E6E9}.Release|Any CPU.ActiveCfg = Release|x64
