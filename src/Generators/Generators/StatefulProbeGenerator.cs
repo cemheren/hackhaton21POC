@@ -66,7 +66,7 @@ namespace Hackathon21Poc.Generators
                 .Single()
                 .Body;
 
-            var generatedMethodBody = $@"
+            var generatedMethodBody = $@"var state = 0;
                 Console.WriteLine(""This is generated"");
                 Console.WriteLine(""This is generated 2"");
 ";
@@ -76,9 +76,11 @@ namespace Hackathon21Poc.Generators
                 var stateSegment = stateSegments[i];
                 var nodesAsText = stateSegment.Select(node => this.GetNodeText(node)).ToArray();
                 var joinedSegment = string.Join("\n", nodesAsText);
-                generatedMethodBody = $@"
-                    {generatedMethodBody}
+                generatedMethodBody = $@" {generatedMethodBody}
+                if (state == {i}) {{
                     {joinedSegment}
+                }}
+                
 ";
             }
 
