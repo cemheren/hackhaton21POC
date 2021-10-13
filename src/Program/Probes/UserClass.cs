@@ -5,6 +5,7 @@
 namespace Hackathon21Poc.Probes
 {
     using System;
+    using GeneratorDependencies;
 
     public partial class UserClass
     {
@@ -16,10 +17,14 @@ namespace Hackathon21Poc.Probes
         
         protected void ProbeImplementation()
         {
+            var x = 5;
+            var y = 5;
             Console.WriteLine("This is hardcoded test");
             Console.WriteLine("arbitrary");
             Console.WriteLine("number");
             Console.WriteLine("of");
+
+            Interleaver.Pause();
 
             Console.WriteLine("statements");
         }

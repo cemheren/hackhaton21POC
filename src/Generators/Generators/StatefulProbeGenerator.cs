@@ -29,6 +29,8 @@ namespace Hackathon21Poc.Generators
 
         public void Execute(GeneratorExecutionContext context)
         {
+            var compilation = context.Compilation;
+
             // the generator infrastructure will create a receiver and populate it
             // we can retrieve the populated instance via the context
             MySyntaxReceiver syntaxReceiver = (MySyntaxReceiver)context.SyntaxReceiver;
@@ -44,6 +46,17 @@ namespace Hackathon21Poc.Generators
             var probeImplementationMethodContents = userClass.Members[1].ChildNodesAndTokens().Last();
             var methodNodes = probeImplementationMethodContents.ChildNodesAndTokens().Skip(1).Take(probeImplementationMethodContents.ChildNodesAndTokens().Count - 2);
             var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNodes.First().SpanStart, methodNodes.Last().SpanStart - methodNodes.First().SpanStart + methodNodes.Last().Span.Length);
+
+            var semanticModel = compilation.GetSemanticModel(userClass.SyntaxTree);
+            var methodBody = userClass.SyntaxTree.GetRoot()
+                .DescendantNodesAndSelf()
+                .OfType<ClassDeclarationSyntax>()
+                .Select(x => semanticModel.GetDeclaredSymbol(x))
+                .OfType<MethodDeclarationSyntax>();
+                
+                //.Where(x => x.Identifier.ValueText.Contains("ProbeImplementation"))
+                //.Single()
+                //.Body;
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
