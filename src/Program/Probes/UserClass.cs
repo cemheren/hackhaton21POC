@@ -17,6 +17,11 @@ namespace Hackathon21Poc.Probes
         protected void ProbeImplementation()
         {
             Console.WriteLine("This is hardcoded test");
+            Console.WriteLine("arbitrary");
+            Console.WriteLine("number");
+            Console.WriteLine("of");
+
+            Console.WriteLine("statements");
         }
 
         public void RunAsync() {

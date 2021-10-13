@@ -8,6 +8,7 @@ namespace Hackathon21Poc.Generators
     using Microsoft.CodeAnalysis.CSharp.Syntax;
     using Microsoft.CodeAnalysis.Text;
     using System.Diagnostics;
+    using System.Linq;
     using System.Text;
 
     [Generator]
@@ -41,8 +42,8 @@ namespace Hackathon21Poc.Generators
             }
             //userClass.SyntaxTree.GetText().ToString().Substring(userClass.Members[1].ChildNodesAndTokens()[4].SpanStart, userClass.Members[1].ChildNodesAndTokens()[4].Span.Length)
             var probeImplementationMethodContents = userClass.Members[1].ChildNodesAndTokens().Last();
-            var methodNode = probeImplementationMethodContents.ChildNodesAndTokens()[1];
-            var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNode.SpanStart, methodNode.Span.Length);
+            var methodNodes = probeImplementationMethodContents.ChildNodesAndTokens().Skip(1).Take(probeImplementationMethodContents.ChildNodesAndTokens().Count - 2);
+            var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNodes.First().SpanStart, methodNodes.Last().SpanStart - methodNodes.First().SpanStart + methodNodes.Last().Span.Length);
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
