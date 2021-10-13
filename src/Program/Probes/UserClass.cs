@@ -22,5 +22,7 @@ namespace Hackathon21Poc.Probes
         public void RunAsync() {
             this.GeneratedProbeImplementation();
         }
+
+        partial void GeneratedProbeImplementation();
     }
 }
