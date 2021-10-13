@@ -7,6 +7,7 @@ namespace Hackathon21Poc.Generators
     using Microsoft.CodeAnalysis;
     using Microsoft.CodeAnalysis.CSharp.Syntax;
     using Microsoft.CodeAnalysis.Text;
+    using System.Diagnostics;
     using System.Text;
 
     [Generator]
@@ -14,6 +15,13 @@ namespace Hackathon21Poc.Generators
     {
         public void Initialize(GeneratorInitializationContext context)
         {
+#if DEBUG
+            if (!Debugger.IsAttached)
+            {
+                Debugger.Launch();
+            }
+#endif 
+
             // Register a factory that can create our custom syntax receiver
             context.RegisterForSyntaxNotifications(() => new MySyntaxReceiver());
         }
@@ -31,6 +39,10 @@ namespace Hackathon21Poc.Generators
                 // if we didn't find the user class, there is nothing to do
                 return;
             }
+            //userClass.SyntaxTree.GetText().ToString().Substring(userClass.Members[1].ChildNodesAndTokens()[4].SpanStart, userClass.Members[1].ChildNodesAndTokens()[4].Span.Length)
+            var probeImplementationMethodContents = userClass.Members[1].ChildNodesAndTokens().Last();
+            var methodNode = probeImplementationMethodContents.ChildNodesAndTokens()[1];
+            var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNode.SpanStart, methodNode.Span.Length);
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
@@ -41,6 +53,7 @@ namespace Hackathon21Poc.Probes {{
     {{
         partial void GeneratedProbeImplementation()
         {{
+            {methodContents}
             Console.WriteLine(""This is generated"");
         }}
     }}
