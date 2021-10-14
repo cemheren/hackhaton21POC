@@ -56,6 +56,9 @@ namespace Hackathon21Poc.Probes
             Interleaver.Pause();
 
             x = 6;
+
+            System.Diagnostics.Debug.WriteLine(x);
+            System.Diagnostics.Debug.WriteLine(""test"");
         }}
 
         public void RunAsync()

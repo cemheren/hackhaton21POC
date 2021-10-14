@@ -23,15 +23,17 @@ namespace Hackathon21Poc.Probes
             int y = 5;
             Interleaver.Pause();
             
+            Console.WriteLine(x);
             Console.WriteLine("This is hardcoded test");
 
             Interleaver.Pause();
 
             x = 10;
-            //Console.WriteLine(x);
+            Console.WriteLine(x);
 
             Interleaver.Wait(TimeSpan.FromSeconds(10));
 
+            Console.WriteLine(x);
             Console.WriteLine("End");
         }
 

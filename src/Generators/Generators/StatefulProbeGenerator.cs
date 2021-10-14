@@ -176,16 +176,60 @@ namespace Hackathon21Poc.Probes {{
             //foreach (var statementGroup in statementGroups)
             foreach (var statement in statementGroup)
             {
-                // todo : also handle invocation statements.
-                if (statement is ExpressionStatementSyntax expressionStatement
-                    && expressionStatement.Expression is AssignmentExpressionSyntax assignmentExpression
-                            && assignmentExpression.Left is IdentifierNameSyntax identifierNameSyntax)
+                // Make sure to capture state variable's initial values.
+                if (statement is LocalDeclarationStatementSyntax localDeclaration
+                        && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
                 {
-                    // note: there are better ways to replace syntax elements in the expression. but this is ok for POC
-                    var statefulStatement = 
-                        statement.ToString().Replace($"{identifierNameSyntax.Identifier} =", $"state.{identifierNameSyntax.Identifier} =");
+                    var declarator = variableDeclaration.ChildNodes().OfType<VariableDeclaratorSyntax>().First();
+                    sb.AppendLine($"state.{declarator.Identifier.ValueText} = {declarator.Initializer.Value};");
+                    continue;
+                }
 
-                    sb.AppendLine(statefulStatement);
+                if (statement is ExpressionStatementSyntax expressionStatement)
+                {
+                    if (expressionStatement.Expression is AssignmentExpressionSyntax assignmentExpression
+                            && assignmentExpression.Left is IdentifierNameSyntax identifierNameSyntax)
+                    {
+                        // note: there are better ways to replace syntax elements in the expression. but this is ok for POC
+                        var statefulStatement =
+                            statement.ToString().Replace($"{identifierNameSyntax.Identifier} =", $"state.{identifierNameSyntax.Identifier} =");
+
+                        sb.AppendLine(statefulStatement);
+                    }
+                    else if (expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
+                                && invocationExpression.ArgumentList is ArgumentListSyntax argumentListSyntax)
+                    {
+                        // Rudimentary way to rewrite functions that have variables. This probably needs to recurse and evaluate every syntax element
+                        // so that we don't miss random things like:
+                        // Console.Write($"{x}");
+                        var invocationExpressionBuilder = new StringBuilder();
+                        invocationExpressionBuilder.Append(invocationExpression.Expression.ToString());
+                        invocationExpressionBuilder.Append("(");
+
+                        foreach (var argument in argumentListSyntax.Arguments)
+                        {
+                            if (argument.Expression is IdentifierNameSyntax methodidentifierNameSyntax)
+                            {
+                                // todo: this can be hashed 
+                                var replacableParam = variables.FirstOrDefault(variable => variable
+                                    .ChildNodes()
+                                    .OfType<VariableDeclaratorSyntax>()
+                                    .First()
+                                    .Identifier
+                                    .Text == methodidentifierNameSyntax.Identifier.Text);
+
+                                if (replacableParam != null)
+                                {
+                                    invocationExpressionBuilder.Append($"state.{methodidentifierNameSyntax.Identifier.Text}");
+                                    continue;
+                                }
+                            }
+
+                            invocationExpressionBuilder.Append(argument.Expression.ToString());
+                        }
+                        invocationExpressionBuilder.Append(");");
+                        sb.AppendLine(invocationExpressionBuilder.ToString());
+                    }
                 }
                 else
                 {
