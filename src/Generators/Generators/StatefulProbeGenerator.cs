@@ -47,7 +47,14 @@ namespace Hackathon21Poc.Generators
             }
 
             var semanticModel = compilation.GetSemanticModel(userClass.SyntaxTree);
-            var methodBody = userClass.SyntaxTree.GetRoot()
+            var syntaxTreeRoot = userClass.SyntaxTree.GetRoot();
+
+            var usingStatements = syntaxTreeRoot
+                .DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .ToArray();
+
+            var methodBody = syntaxTreeRoot
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(x => x.Identifier.ValueText == "ProbeImplementation")
@@ -56,7 +63,7 @@ namespace Hackathon21Poc.Generators
 
             var segments = this.SplitOnInterleaverCalls(methodBody);
 
-            var generatedMethodBody = $@"var state = 0;
+            var generatedMethodBody = $@"
                 Console.WriteLine(""This is generated"");
                 Console.WriteLine(""This is generated 2"");
 ";
@@ -69,19 +76,23 @@ namespace Hackathon21Poc.Generators
                 generatedMethodBody = $@" {generatedMethodBody}
                 if (state == {i}) {{
                     {joinedSegment}
+                    {(i != segments.Count - 1 ? $"state = {i + 1};" : "state = -1;")}
+                    return;
                 }}
                 
 ";
             }
 
+            var usingStatementsText = string.Join("", usingStatements.Select(statement => statement.GetText().ToString()).ToArray()); 
+
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
 namespace Hackathon21Poc.Probes {{
-    using System;
+    {usingStatementsText}
 
     public partial class {userClass.Identifier}
     {{
-        partial void GeneratedProbeImplementation()
+        partial void GeneratedProbeImplementation(ref int state)
         {{
             {generatedMethodBody}
         }}

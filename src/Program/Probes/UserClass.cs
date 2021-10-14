@@ -5,6 +5,7 @@
 namespace Hackathon21Poc.Probes
 {
     using System;
+    using System.Threading.Tasks;
     using GeneratorDependencies;
 
     public partial class UserClass
@@ -12,8 +13,6 @@ namespace Hackathon21Poc.Probes
         public UserClass()
         {
         }
-
-        ////protected abstract Task ProbeImplementation();
         
         protected void ProbeImplementation()
         {
@@ -34,9 +33,17 @@ namespace Hackathon21Poc.Probes
         }
 
         public void RunAsync() {
-            this.GeneratedProbeImplementation();
+            int currentState = 0;
+            while (currentState != -1)
+            {
+                Console.WriteLine($"Running state {currentState}");
+                this.GeneratedProbeImplementation(ref currentState);
+                Console.WriteLine("Simulating delay between state executions");
+                Task.Delay(TimeSpan.FromSeconds(2)).Wait();
+            }
+            
         }
 
-        partial void GeneratedProbeImplementation();
+        partial void GeneratedProbeImplementation(ref int currentState);
     }
 }
