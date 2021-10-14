@@ -21,6 +21,8 @@ namespace GeneratorUnitTest
     public class InterleaverState
     {
         public int ExecutionState;
+
+        public DateTime CurrentStateStartTime;
     }
 
     public class Program
