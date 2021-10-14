@@ -6,6 +6,7 @@ namespace Hackathon21Poc.Generators
 {
     using GeneratorDependencies;
     using Microsoft.CodeAnalysis;
+    using Microsoft.CodeAnalysis.CSharp;
     using Microsoft.CodeAnalysis.CSharp.Syntax;
     using Microsoft.CodeAnalysis.Text;
     using System;
@@ -77,12 +78,40 @@ namespace Hackathon21Poc.Generators
                     var statement = methodBody.Statements[i];
 
                     if (statement is ExpressionStatementSyntax expressionStatement
-                        && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
-                        && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
+                        && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression)
                     {
-                        statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
-                        interleaverCount++; i++;
-                        break;
+                        if (invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
+                        {
+                            statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
+                            interleaverCount++; i++;
+                            break;
+                        }
+                        
+                        if (invocationExpression.GetText().ToString().Contains("Interleaver.Wait"))
+                        {
+                            statementsSplitByInterleaver.Add(new List<StatementSyntax>());
+                            interleaverCount++; i++;
+
+                            var waitTime = invocationExpression.ArgumentList.Arguments[0].Expression.GetText().ToString();
+
+                            var waitString = $@"{{TimeSpan elapsedTime = DateTime.UtcNow - state.CurrentStateStartTime;
+
+                            if (elapsedTime < {waitTime}) {{
+                                Console.WriteLine($""elapsed time: {{elapsedTime}}"");
+                                return;  
+                            }}
+
+                            Console.WriteLine($""Finished waiting {{{waitTime}}}"");
+                            }}";
+
+                            var block = SyntaxFactory.ParseStatement(waitString);
+
+                            statementsSplitByInterleaver[interleaverCount].Add(block);
+
+                            statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
+                            interleaverCount++;
+                            break;
+                        }
                     }
             
                     statementsSplitByInterleaver[interleaverCount].Add(statement);
@@ -109,6 +138,7 @@ namespace Hackathon21Poc.Generators
                 if (state.ExecutionState == {i}) {{
                     {stateSegmentLines}
                     {(i != statementsSplitByInterleaver.Count - 1 ? $"state.ExecutionState = {i + 1};" : "state.ExecutionState = -1;")}
+                    state.CurrentStateStartTime = DateTime.UtcNow;
                     return;
                 }}
                 

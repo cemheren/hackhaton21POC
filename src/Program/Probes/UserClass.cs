@@ -24,12 +24,13 @@ namespace Hackathon21Poc.Probes
             Interleaver.Pause();
             
             Console.WriteLine("This is hardcoded test");
+
             Interleaver.Pause();
 
             x = 10;
             //Console.WriteLine(x);
 
-            Interleaver.Pause();
+            Interleaver.Wait(TimeSpan.FromSeconds(10));
 
             Console.WriteLine("End");
         }
