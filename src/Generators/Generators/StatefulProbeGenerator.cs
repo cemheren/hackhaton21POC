@@ -33,7 +33,7 @@ namespace Hackathon21Poc.Generators
         public void Execute(GeneratorExecutionContext context)
         {
             var compilation = context.Compilation;
-
+            
             // the generator infrastructure will create a receiver and populate it
             // we can retrieve the populated instance via the context
             MySyntaxReceiver syntaxReceiver = (MySyntaxReceiver)context.SyntaxReceiver;
@@ -46,6 +46,8 @@ namespace Hackathon21Poc.Generators
                 return;
             }
 
+            var generatedMethodBody = "";
+
             var semanticModel = compilation.GetSemanticModel(userClass.SyntaxTree);
             var syntaxTreeRoot = userClass.SyntaxTree.GetRoot();
 
@@ -54,6 +56,8 @@ namespace Hackathon21Poc.Generators
                 .OfType<UsingDirectiveSyntax>()
                 .ToArray();
 
+            var usingStatementsText = string.Join("", usingStatements.Select(statement => statement.GetText().ToString()).ToArray());
+
             var methodBody = syntaxTreeRoot
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
@@ -61,73 +65,108 @@ namespace Hackathon21Poc.Generators
                 .Single()
                 .Body;
 
-            var segments = this.SplitOnInterleaverCalls(methodBody);
+            var statementsSplitByInterleaver = new List<List<StatementSyntax>>();
+            statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
 
-            var generatedMethodBody = $@"
-                Console.WriteLine(""This is generated"");
-                Console.WriteLine(""This is generated 2"");
-";
-
-            for (int i = 0; i < segments.Count; i++)
+            var i = 0;
+            var interleaverCount = 0;
+            while (i < methodBody.Statements.Count)
             {
-                var stateSegment = segments[i];
+                for (; i < methodBody.Statements.Count; i++)
+                {
+                    var statement = methodBody.Statements[i];
+
+                    if (statement is ExpressionStatementSyntax expressionStatement
+                        && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
+                        && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
+                    {
+                        statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
+                        interleaverCount++;
+                        i++;
+                        break;
+                    }
+            
+                    statementsSplitByInterleaver[interleaverCount].Add(statement);
+                }
+            }
+
+            for (i = 0; i < statementsSplitByInterleaver.Count; i++)
+            {
+                var stateSegment = statementsSplitByInterleaver[i];
                 var nodesAsText = stateSegment.Select(node => node.GetText().ToString()).ToArray();
                 var joinedSegment = string.Join("", nodesAsText);
                 generatedMethodBody = $@" {generatedMethodBody}
-                if (state == {i}) {{
+                if (state.ExecutionState == {i}) {{
                     {joinedSegment}
-                    {(i != segments.Count - 1 ? $"state = {i + 1};" : "state = -1;")}
+                    {(i != statementsSplitByInterleaver.Count - 1 ? $"state.ExecutionState = {i + 1};" : "state.ExecutionState = -1;")}
                     return;
                 }}
                 
 ";
             }
 
-            var usingStatementsText = string.Join("", usingStatements.Select(statement => statement.GetText().ToString()).ToArray()); 
+            var variables = new List<VariableDeclarationSyntax>();
+            foreach (var statementGroup in statementsSplitByInterleaver)
+            foreach (var statement in statementGroup)
+            {
+                if (statement is LocalDeclarationStatementSyntax localDeclaration
+                        && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
+                {
+                    variables.Add(variableDeclaration);
+                }
+            }
+
 
             // add the generated implementation to the compilation
             SourceText sourceText = SourceText.From($@"
 namespace Hackathon21Poc.Probes {{
     {usingStatementsText}
 
+    public partial class {userClass.Identifier}State
+    {{
+        {GetProperties(semanticModel, variables)}
+    }}
+
     public partial class {userClass.Identifier}
     {{
-        partial void GeneratedProbeImplementation(ref int state)
+        public partial void GeneratedProbeImplementation<T>(T state) where T : InterleaverState
         {{
-            {generatedMethodBody}
+            {
+                generatedMethodBody
+            }
+            System.Diagnostics.Debug.WriteLine(""test"");
         }}
     }}
 }}", Encoding.UTF8);
             context.AddSource("UserClass.Generated.cs", sourceText);
         }
 
-        private List<List<StatementSyntax>> SplitOnInterleaverCalls(BlockSyntax methodBody)
-        {
-            var segments = new List<List<StatementSyntax>>();
-            var interleaverIndexes = new List<int>();
-            for (int i = 0; i < methodBody.Statements.Count; i++)
-            {
-                var statement = methodBody.Statements[i];
-
-                if (statement is ExpressionStatementSyntax expressionStatement
-                    && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
-                    && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
-                {
-                    if (interleaverIndexes.Count == 0)
-                    {
-                        segments.Add(methodBody.Statements.Take(i).ToList());
-                    }
-                    else
-                    {
-                        segments.Add(methodBody.Statements.Skip(interleaverIndexes.Last() + 1).Take(i - interleaverIndexes.Last() - 1).ToList());
-                    }
-
-                    interleaverIndexes.Add(i);
-                }
+        private string GetLines(List<List<StatementSyntax>> statementGroups)
+        { 
+            var sb = new StringBuilder();
+            foreach (var statementGroup in statementGroups)
+            foreach (var statement in statementGroup)
+            { 
+                sb.AppendLine(statement.ToString());
+                sb.Append("            "); // Indent
             }
 
-            segments.Add(methodBody.Statements.Skip(interleaverIndexes.Last() + 1).Take(methodBody.Statements.Count - interleaverIndexes.Last()).ToList());
-            return segments;
+            return sb.ToString();
+        }
+
+        private string GetProperties(SemanticModel sm, List<VariableDeclarationSyntax> variables)
+        {
+            var sb = new StringBuilder();
+            foreach (var variable in variables)
+            {
+                var type = variable.Type.ToString();
+                var declarator = variable.ChildNodes().OfType<VariableDeclaratorSyntax>().First();
+
+                sb.AppendLine($"public {type} {declarator.Identifier.ValueText};");
+                sb.Append("        "); // Indent
+            }
+
+            return sb.ToString();
         }
 
         class MySyntaxReceiver : ISyntaxReceiver

@@ -8,6 +8,9 @@ namespace Hackathon21Poc.Probes
     using System.Threading.Tasks;
     using GeneratorDependencies;
 
+    public partial class UserClassState : InterleaverState
+    { }
+
     public partial class UserClass
     {
         public UserClass()
@@ -16,34 +19,32 @@ namespace Hackathon21Poc.Probes
         
         protected void ProbeImplementation()
         {
-            var x = 5;
-            var y = 5;
+            int x = 5;
+            int y = 5;
             Interleaver.Pause();
             
             Console.WriteLine("This is hardcoded test");
-            Console.WriteLine("This is hardcoded test3fafds");
-            Console.WriteLine("arbitrary");
-            Console.WriteLine("number");
-            Console.WriteLine("of");
+            Interleaver.Pause();
+
+            //Console.WriteLine(x);
 
             Interleaver.Pause();
 
-            Console.WriteLine("of");
-            Console.WriteLine("statements");
+            Console.WriteLine("End");
         }
 
         public void RunAsync() {
-            int currentState = 0;
-            while (currentState != -1)
+            var currentState = new UserClassState();
+            while (currentState.ExecutionState != -1)
             {
-                Console.WriteLine($"Running state {currentState}");
-                this.GeneratedProbeImplementation(ref currentState);
+                Console.WriteLine($"Running state {currentState.ExecutionState}");
+                this.GeneratedProbeImplementation<UserClassState>(currentState);
                 Console.WriteLine("Simulating delay between state executions");
                 Task.Delay(TimeSpan.FromSeconds(2)).Wait();
             }
             
         }
 
-        partial void GeneratedProbeImplementation(ref int currentState);
+        public partial void GeneratedProbeImplementation<T>(T state) where T : InterleaverState;
     }
 }
