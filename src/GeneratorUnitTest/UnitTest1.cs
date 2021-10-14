@@ -11,48 +11,75 @@ namespace GeneratorUnitTest
     [TestClass]
     public class UnitTest1
     {
+        private static string Filler =>
+@"
+    public class Interleaver
+    {
+        public static void Pause() { }
+    }
+
+    public class Program
+    {
+        public static void Main(string[] args)
+        {
+        }
+    }
+"
+;
         [TestMethod]
         public void SimpleGeneratorTest()
         {
-            string userSource = @"
-namespace MyCode
-{
+            string userSource = @$"
+namespace Hackathon21Poc.Probes
+{{
+    using System;
+
+    {Filler}
+
+    public partial class UserClassState
+    {{ }}
+
     public partial class UserClass
-    {
+    {{
         protected void ProbeImplementation()
-        {
-            var x = 5;
-            var y = 5;
+        {{
+            int x = 5;
+            int y = 5;
 
             Interleaver.Pause();
-        }
+        }}
 
         public void RunAsync()
-        {
-            this.GeneratedProbeImplementation();
-        }
+        {{
+            this.GeneratedProbeImplementation(""str"");
+        }}
 
-        partial void GeneratedProbeImplementation();
-    }
-}
+        public partial void GeneratedProbeImplementation<T>(T state);
+    }}
+}}
 ";
             Compilation comp = CreateCompilation(userSource);
+            var errors = comp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+
             var newComp = RunGenerators(comp, out var generatorDiags, new StatefulProbeGenerator());
 
-            Assert.IsNull(generatorDiags);
-            Assert.IsNull(newComp.GetDiagnostics());
+            Assert.AreEqual(0, generatorDiags.Length);
+            errors = newComp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+
+            Assert.AreEqual(0, errors.Count, 
+                message: string.Join("\n ", errors));
         }
 
         private static Compilation CreateCompilation(string source)
             => CSharpCompilation.Create("compilation",
-                new[] { CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview)) },
+                new[] { CSharpSyntaxTree.ParseText(source, new CSharpParseOptions()) },
                 new[] { MetadataReference.CreateFromFile(typeof(Binder).GetTypeInfo().Assembly.Location) },
-                new CSharpCompilationOptions(OutputKind.ConsoleApplication));
+                new CSharpCompilationOptions(OutputKind.WindowsApplication));
         
         private static Compilation RunGenerators(Compilation c, out ImmutableArray<Diagnostic> diagnostics, params ISourceGenerator[] generators)
         {
-            CSharpGeneratorDriver.Create(generators).RunGeneratorsAndUpdateCompilation(c, out var d, out diagnostics);
-            return d;
+            CSharpGeneratorDriver.Create(generators).RunGeneratorsAndUpdateCompilation(c, out var outputCompilation, out diagnostics);
+            return outputCompilation;
         }
     }
  }

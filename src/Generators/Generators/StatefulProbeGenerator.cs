@@ -32,7 +32,7 @@ namespace Hackathon21Poc.Generators
         public void Execute(GeneratorExecutionContext context)
         {
             var compilation = context.Compilation;
-
+            
             // the generator infrastructure will create a receiver and populate it
             // we can retrieve the populated instance via the context
             MySyntaxReceiver syntaxReceiver = (MySyntaxReceiver)context.SyntaxReceiver;
@@ -44,11 +44,7 @@ namespace Hackathon21Poc.Generators
                 // if we didn't find the user class, there is nothing to do
                 return;
             }
-            //userClass.SyntaxTree.GetText().ToString().Substring(userClass.Members[1].ChildNodesAndTokens()[4].SpanStart, userClass.Members[1].ChildNodesAndTokens()[4].Span.Length)
-            var probeImplementationMethodContents = userClass.Members[1].ChildNodesAndTokens().Last();
-            var methodNodes = probeImplementationMethodContents.ChildNodesAndTokens().Skip(1).Take(probeImplementationMethodContents.ChildNodesAndTokens().Count - 2);
-            var methodContents = userClass.SyntaxTree.GetText().ToString().Substring(methodNodes.First().SpanStart, methodNodes.Last().SpanStart - methodNodes.First().SpanStart + methodNodes.Last().Span.Length);
-
+            
             var semanticModel = compilation.GetSemanticModel(userClass.SyntaxTree);
             var methodBody = userClass.SyntaxTree.GetRoot()
                 .DescendantNodes()
@@ -57,20 +53,40 @@ namespace Hackathon21Poc.Generators
                 .Single()
                 .Body;
 
-            var statementsBeforeInterleaver = new List<StatementSyntax>();
+            var statementsSplitByInterleaver = new List<List<StatementSyntax>>();
+            statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
 
-            for (int i = 0; i < methodBody.Statements.Count; i++)
+            var i = 0;
+            var interleaverCount = 0;
+            while (i < methodBody.Statements.Count)
             {
-                var statement = methodBody.Statements[i];
-
-                if (statement is ExpressionStatementSyntax expressionStatement
-                    && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
-                    && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
+                for (; i < methodBody.Statements.Count; i++)
                 {
-                    break;
-                }
+                    var statement = methodBody.Statements[i];
 
-                statementsBeforeInterleaver.Add(statement);
+                    if (statement is ExpressionStatementSyntax expressionStatement
+                        && expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
+                        && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
+                    {
+                        statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
+                        interleaverCount++;
+                        i++;
+                        break;
+                    }
+
+                    statementsSplitByInterleaver[interleaverCount].Add(statement);
+                }
+            }
+
+            var variables = new List<VariableDeclarationSyntax>();
+            foreach (var statementGroup in statementsSplitByInterleaver)
+            foreach (var statement in statementGroup)
+            {
+                if (statement is LocalDeclarationStatementSyntax localDeclaration
+                        && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
+                {
+                    variables.Add(variableDeclaration);
+                }
             }
 
             // add the generated implementation to the compilation
@@ -78,24 +94,48 @@ namespace Hackathon21Poc.Generators
 namespace Hackathon21Poc.Probes {{
     using System;
 
+    public partial class {userClass.Identifier}State
+    {{
+        {GetProperties(semanticModel, variables)}
+    }}
+
     public partial class {userClass.Identifier}
     {{
-        partial void GeneratedProbeImplementation()
+        public partial void GeneratedProbeImplementation<T>(T state)
         {{
-            {GetLines(statementsBeforeInterleaver)}
-            Console.WriteLine(""This is generated"");
+            {
+                GetLines(statementsSplitByInterleaver)
+            }
+            System.Diagnostics.Debug.WriteLine(""test"");
         }}
     }}
 }}", Encoding.UTF8);
             context.AddSource("UserClass.Generated.cs", sourceText);
         }
 
-        private string GetLines(List<StatementSyntax> statements)
+        private string GetLines(List<List<StatementSyntax>> statementGroups)
         { 
             var sb = new StringBuilder();
-            foreach (var statement in statements)
+            foreach (var statementGroup in statementGroups)
+            foreach (var statement in statementGroup)
             { 
                 sb.AppendLine(statement.ToString());
+                sb.Append("            "); // Indent
+            }
+
+            return sb.ToString();
+        }
+
+        private string GetProperties(SemanticModel sm, List<VariableDeclarationSyntax> variables)
+        {
+            var sb = new StringBuilder();
+            foreach (var variable in variables)
+            {
+                var type = variable.Type.ToString();
+                var declarator = variable.ChildNodes().OfType<VariableDeclaratorSyntax>().First();
+
+                sb.AppendLine($"public {type} {declarator.Identifier.ValueText};");
+                sb.Append("        "); // Indent
             }
 
             return sb.ToString();
