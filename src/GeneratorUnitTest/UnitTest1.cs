@@ -52,6 +52,8 @@ namespace Hackathon21Poc.Probes
             int y = 5;
 
             Interleaver.Pause();
+
+            x = 6;
         }}
 
         public void RunAsync()
@@ -60,7 +62,7 @@ namespace Hackathon21Poc.Probes
             this.GeneratedProbeImplementation(st);
         }}
 
-        public partial void GeneratedProbeImplementation<T>(T state) where T : InterleaverState;
+        public partial void GeneratedProbeImplementation(UserClassState state);
     }}
 }}
 ";

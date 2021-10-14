@@ -81,8 +81,7 @@ namespace Hackathon21Poc.Generators
                         && invocationExpression.GetText().ToString().Contains("Interleaver.Pause"))
                     {
                         statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
-                        interleaverCount++;
-                        i++;
+                        interleaverCount++; i++;
                         break;
                     }
             
@@ -90,30 +89,30 @@ namespace Hackathon21Poc.Generators
                 }
             }
 
+            var variables = new List<VariableDeclarationSyntax>();
+            foreach (var statementGroup in statementsSplitByInterleaver)
+                foreach (var statement in statementGroup)
+                {
+                    if (statement is LocalDeclarationStatementSyntax localDeclaration
+                            && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
+                    {
+                        variables.Add(variableDeclaration);
+                    }
+                }
+
             for (i = 0; i < statementsSplitByInterleaver.Count; i++)
             {
                 var stateSegment = statementsSplitByInterleaver[i];
-                var nodesAsText = stateSegment.Select(node => node.GetText().ToString()).ToArray();
-                var joinedSegment = string.Join("", nodesAsText);
+                var stateSegmentLines = GetLines(stateSegment, variables);
+
                 generatedMethodBody = $@" {generatedMethodBody}
                 if (state.ExecutionState == {i}) {{
-                    {joinedSegment}
+                    {stateSegmentLines}
                     {(i != statementsSplitByInterleaver.Count - 1 ? $"state.ExecutionState = {i + 1};" : "state.ExecutionState = -1;")}
                     return;
                 }}
                 
 ";
-            }
-
-            var variables = new List<VariableDeclarationSyntax>();
-            foreach (var statementGroup in statementsSplitByInterleaver)
-            foreach (var statement in statementGroup)
-            {
-                if (statement is LocalDeclarationStatementSyntax localDeclaration
-                        && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
-                {
-                    variables.Add(variableDeclaration);
-                }
             }
 
 
@@ -129,7 +128,7 @@ namespace Hackathon21Poc.Probes {{
 
     public partial class {userClass.Identifier}
     {{
-        public partial void GeneratedProbeImplementation<T>(T state) where T : InterleaverState
+        public partial void GeneratedProbeImplementation({userClass.Identifier}State state)
         {{
             {
                 generatedMethodBody
@@ -141,14 +140,29 @@ namespace Hackathon21Poc.Probes {{
             context.AddSource("UserClass.Generated.cs", sourceText);
         }
 
-        private string GetLines(List<List<StatementSyntax>> statementGroups)
+        private string GetLines(List<StatementSyntax> statementGroup, List<VariableDeclarationSyntax> variables)
         { 
             var sb = new StringBuilder();
-            foreach (var statementGroup in statementGroups)
+            //foreach (var statementGroup in statementGroups)
             foreach (var statement in statementGroup)
-            { 
-                sb.AppendLine(statement.ToString());
-                sb.Append("            "); // Indent
+            {
+                // todo : also handle invocation statements.
+                if (statement is ExpressionStatementSyntax expressionStatement
+                    && expressionStatement.Expression is AssignmentExpressionSyntax assignmentExpression
+                            && assignmentExpression.Left is IdentifierNameSyntax identifierNameSyntax)
+                {
+                    // note: there are better ways to replace syntax elements in the expression. but this is ok for POC
+                    var statefulStatement = 
+                        statement.ToString().Replace($"{identifierNameSyntax.Identifier} =", $"state.{identifierNameSyntax.Identifier} =");
+
+                    sb.AppendLine(statefulStatement);
+                }
+                else
+                {
+                    sb.AppendLine(statement.ToString());
+                }
+
+                sb.Append("            "); // Indent the next line
             }
 
             return sb.ToString();

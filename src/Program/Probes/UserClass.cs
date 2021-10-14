@@ -26,6 +26,7 @@ namespace Hackathon21Poc.Probes
             Console.WriteLine("This is hardcoded test");
             Interleaver.Pause();
 
+            x = 10;
             //Console.WriteLine(x);
 
             Interleaver.Pause();
@@ -38,13 +39,13 @@ namespace Hackathon21Poc.Probes
             while (currentState.ExecutionState != -1)
             {
                 Console.WriteLine($"Running state {currentState.ExecutionState}");
-                this.GeneratedProbeImplementation<UserClassState>(currentState);
+                this.GeneratedProbeImplementation(currentState);
                 Console.WriteLine("Simulating delay between state executions");
                 Task.Delay(TimeSpan.FromSeconds(2)).Wait();
             }
             
         }
 
-        public partial void GeneratedProbeImplementation<T>(T state) where T : InterleaverState;
+        public partial void GeneratedProbeImplementation(UserClassState state);
     }
 }
