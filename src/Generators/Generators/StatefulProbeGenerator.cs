@@ -59,14 +59,38 @@ namespace Hackathon21Poc.Generators
                 .OfType<UsingDirectiveSyntax>()
                 .ToArray();
 
-            var usingStatementsText = string.Join("", usingStatements.Select(statement => statement.GetText().ToString()).ToArray());
-
             var methodBody = syntaxTreeRoot
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
                 .Where(x => x.Identifier.ValueText == "StatelessImplementation")
                 .Single()
                 .Body;
+
+            var variableDictionary = methodBody
+                .DescendantNodes()
+                .OfType<VariableDeclarationSyntax>()
+                .ToDictionary(keySelector: (variable) => { return variable.ChildNodes().OfType<VariableDeclaratorSyntax>().First().Identifier.ValueText; });
+
+            var identifiers = methodBody
+                .DescendantNodes()
+                .OfType<IdentifierNameSyntax>()
+                .ToArray();
+
+            var variableIdentifiers = identifiers.Where(identifier => variableDictionary.ContainsKey(identifier.Identifier.ValueText));
+
+            methodBody = methodBody.ReplaceNodes(variableIdentifiers,
+                (node, x) =>
+                {
+                    var memberAccessExpressionSyntax = SyntaxFactory
+                        .MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression, 
+                            SyntaxFactory.IdentifierName("state"), 
+                            SyntaxFactory.IdentifierName(node.Identifier.ValueText))
+                        .WithTriviaFrom(node);
+                    return memberAccessExpressionSyntax;
+                });
+
+            var usingStatementsText = string.Join("", usingStatements.Select(statement => statement.GetText().ToString()).ToArray());
 
             var statementsSplitByInterleaver = new List<List<StatementSyntax>>();
             statementsSplitByInterleaver.Add(new List<StatementSyntax>()); // add the initial one.
@@ -120,25 +144,14 @@ namespace Hackathon21Poc.Generators
                 }
             }
 
-            var variables = new List<VariableDeclarationSyntax>();
-            foreach (var statementGroup in statementsSplitByInterleaver)
-                foreach (var statement in statementGroup)
-                {
-                    if (statement is LocalDeclarationStatementSyntax localDeclaration
-                            && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
-                    {
-                        variables.Add(variableDeclaration);
-                    }
-                }
-
             for (i = 0; i < statementsSplitByInterleaver.Count; i++)
             {
                 var stateSegment = statementsSplitByInterleaver[i];
-                var stateSegmentLines = GetLines(stateSegment, variables);
+                var stateSegmentLines = GetLines(stateSegment, variableDictionary.Values.ToList());
 
                 generatedMethodBody = $@" {generatedMethodBody}
             if (state.ExecutionState == {i}) {{
-                {stateSegmentLines}
+{stateSegmentLines}
                 {(i != statementsSplitByInterleaver.Count - 1 ? $"state.ExecutionState = {i + 1};" : "state.ExecutionState = -1;")}
                 state.CurrentStateStartTime = DateTime.UtcNow;
                 return;
@@ -155,7 +168,7 @@ namespace Hackathon21Poc.Probes {{
 
     public partial class {userClass.Identifier}State
     {{
-        {GetProperties(semanticModel, variables)}
+        {GetProperties(semanticModel, variableDictionary.Values.ToList())}
     }}
 
     public partial class {userClass.Identifier}
@@ -172,73 +185,28 @@ namespace Hackathon21Poc.Probes {{
             context.AddSource($"{userClass.Identifier.Text}.Generated.cs", sourceText);
         }
 
-        private string GetLines(List<StatementSyntax> statementGroup, List<VariableDeclarationSyntax> variables)
-        { 
+        private string GetLines(List<StatementSyntax> statementGroup, List<VariableDeclarationSyntax> variables, int indent = 1)
+        {
+            string leftIndent = String.Join("", Enumerable.Repeat("    ", indent));
+
             var sb = new StringBuilder();
-            //foreach (var statementGroup in statementGroups)
             foreach (var statement in statementGroup)
             {
-                // Make sure to capture state variable's initial values.
+                // manually remove all the initializers. Couldn't figure out a quick way to do this with ReplaceNodes since these are not statements
                 if (statement is LocalDeclarationStatementSyntax localDeclaration
                         && localDeclaration.Declaration is VariableDeclarationSyntax variableDeclaration)
                 {
                     var declarator = variableDeclaration.ChildNodes().OfType<VariableDeclaratorSyntax>().First();
-                    sb.AppendLine($"state.{declarator.Identifier.ValueText} = {declarator.Initializer.Value};");
+                    sb.AppendLine($"{leftIndent}{variableDeclaration.GetLeadingTrivia().ToFullString()}state.{declarator.Identifier.ValueText} = {declarator.Initializer.Value};");
                     continue;
                 }
 
-                if (statement is ExpressionStatementSyntax expressionStatement)
+                sb.Append($"{statement.GetLeadingTrivia().ToString().Trim('\n')}");
+                foreach (var line in statement.ToString().Split(new[] { Environment.NewLine }, StringSplitOptions.None))
                 {
-                    if (expressionStatement.Expression is AssignmentExpressionSyntax assignmentExpression
-                            && assignmentExpression.Left is IdentifierNameSyntax identifierNameSyntax)
-                    {
-                        // note: there are better ways to replace syntax elements in the expression. but this is ok for POC
-                        var statefulStatement =
-                            statement.ToString().Replace($"{identifierNameSyntax.Identifier} =", $"state.{identifierNameSyntax.Identifier} =");
-
-                        sb.AppendLine(statefulStatement);
-                    }
-                    else if (expressionStatement.Expression is InvocationExpressionSyntax invocationExpression
-                                && invocationExpression.ArgumentList is ArgumentListSyntax argumentListSyntax)
-                    {
-                        // Rudimentary way to rewrite functions that have variables. This probably needs to recurse and evaluate every syntax element
-                        // so that we don't miss random things like:
-                        // Console.Write($"{x}");
-                        var invocationExpressionBuilder = new StringBuilder();
-                        invocationExpressionBuilder.Append(invocationExpression.Expression.ToString());
-                        invocationExpressionBuilder.Append("(");
-
-                        foreach (var argument in argumentListSyntax.Arguments)
-                        {
-                            if (argument.Expression is IdentifierNameSyntax methodidentifierNameSyntax)
-                            {
-                                // todo: this can be hashed 
-                                var replacableParam = variables.FirstOrDefault(variable => variable
-                                    .ChildNodes()
-                                    .OfType<VariableDeclaratorSyntax>()
-                                    .First()
-                                    .Identifier
-                                    .Text == methodidentifierNameSyntax.Identifier.Text);
-
-                                if (replacableParam != null)
-                                {
-                                    invocationExpressionBuilder.Append($"state.{methodidentifierNameSyntax.Identifier.Text}");
-                                    continue;
-                                }
-                            }
-
-                            invocationExpressionBuilder.Append(argument.Expression.ToString());
-                        }
-                        invocationExpressionBuilder.Append(");");
-                        sb.AppendLine(invocationExpressionBuilder.ToString());
-                    }
+                    sb.AppendLine($"{leftIndent}{line}");
                 }
-                else
-                {
-                    sb.AppendLine(statement.ToString());
-                }
-
-                sb.Append("            "); // Indent the next line
+                sb.Append($"{statement.GetTrailingTrivia().ToString().Trim('\n')}");
             }
 
             return sb.ToString();

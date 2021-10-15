@@ -60,6 +60,12 @@ namespace Hackathon21Poc.Probes
             x = 6;
 
             System.Diagnostics.Debug.WriteLine(x);
+
+            if(x == 6)
+            {{
+                x = 10;
+            }}
+
             System.Diagnostics.Debug.WriteLine(""test"");
         }}
 
