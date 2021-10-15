@@ -11,21 +11,15 @@ namespace Hackathon21Poc.Probes
     public partial class UserClassState : InterleaverState
     { }
 
-    public partial class UserClass
+    public partial class UserClass : IGeneratorCapable
     {
-        public UserClass()
-        {
-        }
-        
-        protected void ProbeImplementation()
+        public void StatelessImplementation()
         {
             int x = 5;
-            int y = 5;
+            float y = 5;
             Interleaver.Pause();
             
             Console.WriteLine(x);
-            Console.WriteLine("This is hardcoded test");
-
             Interleaver.Pause();
 
             x = 10;
@@ -42,13 +36,13 @@ namespace Hackathon21Poc.Probes
             while (currentState.ExecutionState != -1)
             {
                 Console.WriteLine($"Running state {currentState.ExecutionState}");
-                this.GeneratedProbeImplementation(currentState);
+                this.GeneratedStatefulImplementation(currentState);
                 Console.WriteLine("Simulating delay between state executions");
                 Task.Delay(TimeSpan.FromSeconds(2)).Wait();
             }
             
         }
 
-        public partial void GeneratedProbeImplementation(UserClassState state);
+        public partial void GeneratedStatefulImplementation(UserClassState state);
     }
 }

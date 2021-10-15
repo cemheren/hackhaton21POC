@@ -33,20 +33,22 @@ namespace Hackathon21Poc.Generators
 
         public void Execute(GeneratorExecutionContext context)
         {
-            var compilation = context.Compilation;
-            
             // the generator infrastructure will create a receiver and populate it
             // we can retrieve the populated instance via the context
             MySyntaxReceiver syntaxReceiver = (MySyntaxReceiver)context.SyntaxReceiver;
 
             // get the recorded user class
-            ClassDeclarationSyntax userClass = syntaxReceiver.ClassToAugment;
-            if (userClass is null)
-            {
-                // if we didn't find the user class, there is nothing to do
-                return;
-            }
+            var classes = syntaxReceiver.ClassesToAugment;
 
+            foreach (var cls in classes)
+            {
+                GenerateStatefulMethods(cls, context);
+            }
+        }
+
+        private void GenerateStatefulMethods(ClassDeclarationSyntax userClass, GeneratorExecutionContext context)
+        {
+            var compilation = context.Compilation;
             var generatedMethodBody = "";
 
             var semanticModel = compilation.GetSemanticModel(userClass.SyntaxTree);
@@ -62,7 +64,7 @@ namespace Hackathon21Poc.Generators
             var methodBody = syntaxTreeRoot
                 .DescendantNodes()
                 .OfType<MethodDeclarationSyntax>()
-                .Where(x => x.Identifier.ValueText == "ProbeImplementation")
+                .Where(x => x.Identifier.ValueText == "StatelessImplementation")
                 .Single()
                 .Body;
 
@@ -86,7 +88,7 @@ namespace Hackathon21Poc.Generators
                             interleaverCount++; i++;
                             break;
                         }
-                        
+
                         if (invocationExpression.GetText().ToString().Contains("Interleaver.Wait"))
                         {
                             statementsSplitByInterleaver.Add(new List<StatementSyntax>());
@@ -113,7 +115,7 @@ namespace Hackathon21Poc.Generators
                             break;
                         }
                     }
-            
+
                     statementsSplitByInterleaver[interleaverCount].Add(statement);
                 }
             }
@@ -135,12 +137,12 @@ namespace Hackathon21Poc.Generators
                 var stateSegmentLines = GetLines(stateSegment, variables);
 
                 generatedMethodBody = $@" {generatedMethodBody}
-                if (state.ExecutionState == {i}) {{
-                    {stateSegmentLines}
-                    {(i != statementsSplitByInterleaver.Count - 1 ? $"state.ExecutionState = {i + 1};" : "state.ExecutionState = -1;")}
-                    state.CurrentStateStartTime = DateTime.UtcNow;
-                    return;
-                }}
+            if (state.ExecutionState == {i}) {{
+                {stateSegmentLines}
+                {(i != statementsSplitByInterleaver.Count - 1 ? $"state.ExecutionState = {i + 1};" : "state.ExecutionState = -1;")}
+                state.CurrentStateStartTime = DateTime.UtcNow;
+                return;
+            }}
                 
 ";
             }
@@ -158,7 +160,7 @@ namespace Hackathon21Poc.Probes {{
 
     public partial class {userClass.Identifier}
     {{
-        public partial void GeneratedProbeImplementation({userClass.Identifier}State state)
+        public partial void GeneratedStatefulImplementation({userClass.Identifier}State state)
         {{
             {
                 generatedMethodBody
@@ -167,7 +169,7 @@ namespace Hackathon21Poc.Probes {{
         }}
     }}
 }}", Encoding.UTF8);
-            context.AddSource("UserClass.Generated.cs", sourceText);
+            context.AddSource($"{userClass.Identifier.Text}.Generated.cs", sourceText);
         }
 
         private string GetLines(List<StatementSyntax> statementGroup, List<VariableDeclarationSyntax> variables)
@@ -259,23 +261,17 @@ namespace Hackathon21Poc.Probes {{
 
         class MySyntaxReceiver : ISyntaxReceiver
         {
-            public ClassDeclarationSyntax ClassToAugment { get; private set; }
-
-            public MethodDeclarationSyntax MethodToAugment { get; private set; }
+            public List<ClassDeclarationSyntax> ClassesToAugment = new List<ClassDeclarationSyntax>();
 
             public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
             {
                 // Business logic to decide what we're interested in goes here
-                if (syntaxNode is ClassDeclarationSyntax cds &&
-                    cds.Identifier.ValueText == "UserClass")
+                if (syntaxNode is ClassDeclarationSyntax cds)
                 {
-                    ClassToAugment = cds;
-                }
-
-                if (syntaxNode is MethodDeclarationSyntax method &&
-                    method.Identifier.ValueText == "ProbeImplementation")
-                {
-                    MethodToAugment = method;
+                    if (cds.BaseList?.Types.Any(node => node.Type.ToString() == ("IGeneratorCapable")) == true)
+                    {
+                        ClassesToAugment.Add(cds);
+                    }
                 }
             }
         }
