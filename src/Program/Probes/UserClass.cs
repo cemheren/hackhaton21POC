@@ -7,6 +7,7 @@ namespace Hackathon21Poc.Probes
     using System;
     using System.Threading.Tasks;
     using GeneratorDependencies;
+    using System.Linq;
 
     public partial class UserClassState : InterleaverState
     { }
@@ -15,20 +16,24 @@ namespace Hackathon21Poc.Probes
     {
         public void StatelessImplementation()
         {
-            int x = 5;
-            float y = 5;
-            Interleaver.Pause();
-            
-            Console.WriteLine(x);
+            int x = 1;
+            int y = 10;
+
             Interleaver.Pause();
 
-            x = 10;
-            Console.WriteLine(x);
+            if (x == 1)
+            {
+                x = Enumerable.Range(x, 2).Sum();
+            }
+            Interleaver.Pause();
 
-            Interleaver.Wait(TimeSpan.FromSeconds(10));
+            while (x == 3)
+            {
+                x = 4;
+            }
+            Interleaver.Pause();
 
             Console.WriteLine(x);
-            Console.WriteLine("End");
         }
 
         public void RunAsync() {
